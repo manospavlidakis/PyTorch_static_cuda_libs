@@ -1,0 +1,246 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 471fc8a8d3d..6af0ce630ff 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -231,7 +231,7 @@ cmake_dependent_option(
+     USE_MPS "Use MPS for macOS build" ON
+     "MPS_FOUND" OFF)
+ cmake_dependent_option(
+-    USE_NCCL "Use NCCL" ON
++	USE_NCCL "Use NCCL" OFF
+     "USE_CUDA OR USE_ROCM;UNIX;NOT APPLE" OFF)
+ cmake_dependent_option(USE_RCCL "Use RCCL" ON
+     USE_NCCL OFF)
+diff --git a/aten/src/ATen/CMakeLists.txt b/aten/src/ATen/CMakeLists.txt
+index 96fc29782b2..8709fef3ff2 100644
+--- a/aten/src/ATen/CMakeLists.txt
++++ b/aten/src/ATen/CMakeLists.txt
+@@ -452,12 +452,12 @@ if(USE_CUDA AND NOT USE_ROCM)
+   else()
+     list(APPEND ATen_CUDA_DEPENDENCY_LIBS
+       ${CUDA_LIBRARIES}
+-      ${CUDA_cusparse_LIBRARY}
+-      ${CUDA_curand_LIBRARY}
++      ${CUDA_cusparse_static_LIBRARY}
++      ${CUDA_curand_static_LIBRARY}
+       )
+    if(NOT BUILD_LAZY_CUDA_LINALG)
+      list(APPEND ATen_CUDA_DEPENDENCY_LIBS
+-       ${CUDA_cusolver_LIBRARY}
++      ${CUDA_cusolver_static_LIBRARY}
+      )
+    endif()
+   endif()
+diff --git a/binaries/CMakeLists.txt b/binaries/CMakeLists.txt
+index 15f47bf52ae..b621d100292 100644
+--- a/binaries/CMakeLists.txt
++++ b/binaries/CMakeLists.txt
+@@ -62,7 +62,7 @@ if(USE_CUDA)
+   if(BUILD_TEST)
+     # Core overhead benchmark
+     caffe2_binary_target("core_overhead_benchmark_gpu.cc")
+-    target_link_libraries(core_overhead_benchmark_gpu benchmark ${CUDA_curand_LIBRARY})
++    target_link_libraries(core_overhead_benchmark_gpu benchmark ${CUDA_curand_static_LIBRARY})
+   endif()
+ endif()
+ 
+diff --git a/caffe2/CMakeLists.txt b/caffe2/CMakeLists.txt
+index 221e3f32b29..ff3c817d1e9 100644
+--- a/caffe2/CMakeLists.txt
++++ b/caffe2/CMakeLists.txt
+@@ -877,7 +877,7 @@ file(WRITE ${DUMMY_EMPTY_FILE} ${DUMMY_FILE_CONTENT})
+ # Contains "torch_cpu" and "torch_cuda"
+ add_library(torch ${DUMMY_EMPTY_FILE})
+ if(HAVE_SOVERSION)
+-  set_target_properties(torch PROPERTIES
++      set_target_properties(torch PROPERTIES
+       VERSION ${TORCH_VERSION} SOVERSION ${TORCH_SOVERSION})
+ endif()
+ 
+@@ -956,7 +956,7 @@ elseif(USE_CUDA)
+       )
+     else()
+       target_link_libraries(torch_cuda_linalg PRIVATE
+-          ${CUDA_cusolver_LIBRARY}
++          ${CUDA_cusolver_static_LIBRARY}
+       )
+     endif()
+     # NS: TODO, is this really necessary?
+diff --git a/cmake/Modules_CUDA_fix/upstream/FindCUDA.cmake b/cmake/Modules_CUDA_fix/upstream/FindCUDA.cmake
+index 7f45cd09844..46cd792dac6 100644
+--- a/cmake/Modules_CUDA_fix/upstream/FindCUDA.cmake
++++ b/cmake/Modules_CUDA_fix/upstream/FindCUDA.cmake
+@@ -1,4 +1,4 @@
+-#.rst:
++##.rst:
+ # FindCUDA
+ # --------
+ #
+@@ -627,16 +627,22 @@ macro(cuda_unset_include_and_libraries)
+   # Make sure you run this before you unset CUDA_VERSION.
+   unset(CUDA_cudart_static_LIBRARY CACHE)
+   unset(CUDA_cudadevrt_LIBRARY CACHE)
+-  unset(CUDA_cublas_LIBRARY CACHE)
++  #unset(CUDA_cublas_LIBRARY CACHE)
++  unset(CUBLAS_STATIC_LIBRARY CACHE)
+   unset(CUDA_cublas_device_LIBRARY CACHE)
+   unset(CUDA_cublasemu_LIBRARY CACHE)
+-  unset(CUDA_cublasLt_LIBRARY CACHE)
+-  unset(CUDA_cufft_LIBRARY CACHE)
++  unset(CUBLASLT_STATIC_LIBRARY CACHE)
++  #unset(CUDA_cublasLt_LIBRARY CACHE)
++  unset(CUDA_cufft_static_LIBRARY CACHE)
++  #unset(CUDA_cufft_LIBRARY CACHE)
+   unset(CUDA_cufftemu_LIBRARY CACHE)
+   unset(CUDA_cupti_LIBRARY CACHE)
+-  unset(CUDA_curand_LIBRARY CACHE)
+-  unset(CUDA_cusolver_LIBRARY CACHE)
+-  unset(CUDA_cusparse_LIBRARY CACHE)
++  unset(CUDA_curand_static_LIBRARY CACHE)
++  #unset(CUDA_curand_LIBRARY CACHE)
++  unset(CUDA_cusolver_static_LIBRARY CACHE)
++  #unset(CUDA_cusolver_LIBRARY CACHE)
++  unset(CUDA_cusparse_static_LIBRARY CACHE)
++  #unset(CUDA_cusparse_LIBRARY CACHE)
+   unset(CUDA_npp_LIBRARY CACHE)
+   unset(CUDA_nppc_LIBRARY CACHE)
+   unset(CUDA_nppi_LIBRARY CACHE)
+@@ -954,6 +960,7 @@ mark_as_advanced(
+ #######################
+ # Look for some of the toolkit helper libraries
+ macro(FIND_CUDA_HELPER_LIBS _name)
++  message(STATUS "-----------------------Finding CUDA helper library: ${_name}")
+   cuda_find_library_local_first(CUDA_${_name}_LIBRARY ${_name} "\"${_name}\" library")
+   mark_as_advanced(CUDA_${_name}_LIBRARY)
+ endmacro()
+@@ -962,12 +969,12 @@ if(CUDA_BUILD_EMULATION)
+   message(FATAL_ERROR "CUDA_BUILD_EMULATION is not supported in version 3.1 and onwards.  You must disable it to proceed.  You have version ${CUDA_VERSION}.")
+ endif()
+ 
+-find_cuda_helper_libs(cufft)
+-find_cuda_helper_libs(cublas)
+-find_cuda_helper_libs(cublasLt)
++find_cuda_helper_libs(cufft_static)
++#find_cuda_helper_libs(cublas)
++#find_cuda_helper_libs(cublasLt)
+ # cusparse showed up in version 3.2
+-find_cuda_helper_libs(cusparse)
+-find_cuda_helper_libs(curand)
++find_cuda_helper_libs(cusparse_static)
++find_cuda_helper_libs(curand_static)
+ if (WIN32)
+   find_cuda_helper_libs(nvcuvenc)
+   find_cuda_helper_libs(nvcuvid)
+@@ -988,14 +995,25 @@ find_cuda_helper_libs(nppitc)
+ find_cuda_helper_libs(npps)
+ set(CUDA_npp_LIBRARY "${CUDA_nppc_LIBRARY};${CUDA_nppial_LIBRARY};${CUDA_nppicc_LIBRARY};${CUDA_nppicom_LIBRARY};${CUDA_nppidei_LIBRARY};${CUDA_nppif_LIBRARY};${CUDA_nppig_LIBRARY};${CUDA_nppim_LIBRARY};${CUDA_nppist_LIBRARY};${CUDA_nppisu_LIBRARY};${CUDA_nppitc_LIBRARY};${CUDA_npps_LIBRARY}")
+ # cusolver showed up in version 7.0
+-find_cuda_helper_libs(cusolver)
++find_cuda_helper_libs(cusolver_static)
+ 
+ if (CUDA_BUILD_EMULATION)
+   set(CUDA_CUFFT_LIBRARIES ${CUDA_cufftemu_LIBRARY})
+   set(CUDA_CUBLAS_LIBRARIES ${CUDA_cublasemu_LIBRARY})
+ else()
+-  set(CUDA_CUFFT_LIBRARIES ${CUDA_cufft_LIBRARY})
+-  set(CUDA_CUBLAS_LIBRARIES ${CUDA_cublas_LIBRARY} ${CUDA_cublas_device_LIBRARY} ${CUDA_cublasLt_LIBRARY})
++  message(!!!!!CUDA_TOOLKIT_ROOT_DIR="${CUDA_TOOLKIT_ROOT_DIR}")
++  #find_library(CURAND_STATIC_LIBRARY curand_static PATHS ${CUDA_TOOLKIT_ROOT_DIR}/lib64)
++  #message(!!!!!CURAND="${CURAND_STATIC_LIBRARY}")
++  find_library(CULIBOS_STATIC_LIBRARY culibos PATHS ${CUDA_TOOLKIT_ROOT_DIR}/lib64)
++  find_library(CUBLASLT_STATIC_LIBRARY cublasLt_static PATHS ${CUDA_TOOLKIT_ROOT_DIR}/lib64)
++  find_library(CUBLAS_STATIC_LIBRARY cublas_static PATHS ${CUDA_TOOLKIT_ROOT_DIR}/lib64)
++  #set(CUDA_CUBLAS_LIBRARIES ${CUBLAS_STATIC_LIBRARY} ${CUBLASLT_STATIC_LIBRARY} ${CURAND_STATIC_LIBRARY} ${CULIBOS_STATIC_LIBRARY} CACHE FILEPATH "" FORCE)
++  set(CUDA_CUBLAS_LIBRARIES ${CUBLAS_STATIC_LIBRARY} ${CUBLASLT_STATIC_LIBRARY} ${CULIBOS_STATIC_LIBRARY} CACHE FILEPATH "" FORCE)
++  #set(CUDA_CUBLAS_LIBRARIES ${CUDA_cublas_LIBRARY} ${CUDA_cublas_device_LIBRARY} ${CUDA_cublasLt_LIBRARY})
++  find_library(CUDA_cufft_static_LIBRARY cufft_static PATHS ${CUDA_TOOLKIT_ROOT_DIR}/lib64)
++  find_library(CUDA_cufft_static_LIBRARY cufft_static PATHS ${CUDA_TOOLKIT_ROOT_DIR}/lib64)
++  #set(CUDA_CUFFT_LIBRARIES ${CUDA_cufft_LIBRARY})
++  set(CUDA_CUFFT_LIBRARIES ${CUDA_cufft_static_LIBRARY})
+ endif()
+ 
+ ########################
+@@ -1786,6 +1804,7 @@ endfunction()
+ ###############################################################################
+ ###############################################################################
+ macro(CUDA_ADD_LIBRARY cuda_target)
++  message(------>>>>>>>> cuda_target LIB ="${cuda_target}")
+ 
+   CUDA_ADD_CUDA_INCLUDE_ONCE()
+ 
+@@ -1819,14 +1838,16 @@ macro(CUDA_ADD_LIBRARY cuda_target)
+ 
+   if(CUDA_SEPARABLE_COMPILATION)
+     target_link_libraries(${cuda_target} ${CUDA_LINK_LIBRARIES_KEYWORD}
+-      ${CUDA_cudadevrt_LIBRARY}
++	    #${CUDA_cudadevrt_LIBRARY}
+       )
+   endif()
+ 
+   # We need to set the linker language based on what the expected generated file
+   # would be. CUDA_C_OR_CXX is computed based on CUDA_HOST_COMPILATION_CPP.
+   set_target_properties(${cuda_target}
++	  #message(------ cuda_target 1 ="${cuda_target}")
+     PROPERTIES
++    CUDA_RESOLVE_DEVICE_SYMBOLS ON
+     LINKER_LANGUAGE ${CUDA_C_OR_CXX}
+     )
+ 
+@@ -1839,7 +1860,7 @@ endmacro()
+ ###############################################################################
+ ###############################################################################
+ macro(CUDA_ADD_EXECUTABLE cuda_target)
+-
++  message(------>>>>>>>> cuda_target 0 ="${cuda_target}")
+   CUDA_ADD_CUDA_INCLUDE_ONCE()
+ 
+   # Separate the sources from the options
+@@ -1869,8 +1890,10 @@ macro(CUDA_ADD_EXECUTABLE cuda_target)
+ 
+   # We need to set the linker language based on what the expected generated file
+   # would be. CUDA_C_OR_CXX is computed based on CUDA_HOST_COMPILATION_CPP.
+-  set_target_properties(${cuda_target}
++      set_target_properties(${cuda_target}
++    message(------>>>>>>>> cuda_target 2 ="${cuda_target}")
+     PROPERTIES
++    CUDA_RESOLVE_DEVICE_SYMBOLS ON
+     LINKER_LANGUAGE ${CUDA_C_OR_CXX}
+     )
+ 
+@@ -1951,7 +1974,9 @@ macro(CUDA_ADD_CUFFT_TO_TARGET target)
+   if (CUDA_BUILD_EMULATION)
+     target_link_libraries(${target} ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_cufftemu_LIBRARY})
+   else()
+-    target_link_libraries(${target} ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_cufft_LIBRARY})
++    #target_link_libraries(${target} ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_cufft_LIBRARY})
++    target_link_libraries(${target} ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_cufft_static_LIBRARY})
++    #target_link_libraries(${target} ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUFFT_STATIC_LIBRARY} Threads::Threads dl)
+   endif()
+ endmacro()
+ 
+@@ -1964,7 +1989,8 @@ macro(CUDA_ADD_CUBLAS_TO_TARGET target)
+   if (CUDA_BUILD_EMULATION)
+     target_link_libraries(${target} ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_cublasemu_LIBRARY})
+   else()
+-    target_link_libraries(${target} ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_cublas_LIBRARY} ${CUDA_cublas_device_LIBRARY} ${CUDA_cublasLt_LIBRARY})
++	  #target_link_libraries(${target} ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_cublas_LIBRARY} ${CUDA_cublas_device_LIBRARY} ${CUDA_cublasLt_LIBRARY})
++	  target_link_libraries(${target} ${CUDA_LINK_LIBRARIES_KEYWORD} ${CURAND_STATIC_LIBRARY} ${CUBLAS_STATIC_LIBRARY} ${CUBLASLT_STATIC_LIBRARY} Threads::Threads dl)
+   endif()
+ endmacro()
+ 
+diff --git a/cmake/public/cuda.cmake b/cmake/public/cuda.cmake
+index df40ff7d2da..910189b8ba4 100644
+--- a/cmake/public/cuda.cmake
++++ b/cmake/public/cuda.cmake
+@@ -300,9 +300,10 @@ if(CAFFE2_STATIC_LINK_CUDA AND NOT WIN32)
+         TARGET caffe2::curand PROPERTY INTERFACE_LINK_LIBRARIES
+         "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libculibos.a" dl)
+ else()
++    message(STATUS "HEERRRRRRRRRRRRRRRRRRRRRRREEEEEEEEEEEEEEEE")
+     set_property(
+         TARGET caffe2::curand PROPERTY IMPORTED_LOCATION
+-        ${CUDA_curand_LIBRARY})
++        ${CUDA_curand_static_LIBRARY})
+ endif()
+ set_property(
+     TARGET caffe2::curand PROPERTY INTERFACE_INCLUDE_DIRECTORIES
